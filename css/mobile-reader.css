@@ -1,0 +1,81 @@
+/* ================================================
+   MAERS-Story  ·  Mobile Reader Adaptation
+   ================================================ */
+
+@media (max-width: 768px) {
+
+    /* ── Brief overlay ── */
+    #reader-overlay .close-btn {
+        top: 15px;
+        right: 20px;
+        font-size: 32px;
+    }
+
+    #reader-overlay .content {
+        padding: 25px 20px !important;
+        width: 90%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    #reader-overlay h1 {
+        padding-right: 30px;
+        font-size: 1.5rem;
+    }
+
+    /* ── Pure-reading layout ── */
+    body.pure-reading #reader-overlay .content {
+        padding: 60px 20px 30px !important;
+        width: 100%;
+        height: 100vh;
+        max-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* ── Top buttons ── */
+    body.pure-reading #ch-menu-btn {
+        top: 15px;
+        left: 15px;
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+
+    body.pure-reading #ch-mode-btn {
+        left: 60px;
+        top: 15px;
+        height: 32px;
+        font-size: 12px;
+        padding: 0 12px;
+    }
+
+    /* ── Sidebar: full-width on mobile ── */
+    #ch-sidebar {
+        width: 100%;
+        padding-top: 60px;
+    }
+
+    /* ── Chapter body ── */
+    #ch-content {
+        font-size: 15px;
+        line-height: 1.7;
+    }
+
+    /* ── Page pagination ── */
+    #page-nav {
+        margin-top: auto;
+        padding-top: 15px;
+        gap: 6px;
+    }
+
+    .pg-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 11px;
+    }
+
+    .pg-btn.pg-arrow {
+        padding: 0 10px;
+    }
+}

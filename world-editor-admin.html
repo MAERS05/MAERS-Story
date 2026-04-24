@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>构灵人 · 灵镜 — 世界观测</title>
+    <link rel="stylesheet" href="./css/admin.css">
+    <style>
+        .editor-split {
+            display: flex; gap: 0; height: 100%;
+        }
+        .editor-left {
+            flex: 1; overflow-y: auto; padding: 24px;
+            border-right: 1px solid var(--border);
+        }
+        .editor-right {
+            width: 45%; min-width: 320px;
+            position: relative; background: #000;
+        }
+        .editor-right canvas {
+            width: 100% !important; height: 100% !important;
+        }
+        .preview-label {
+            position: absolute; top: 12px; left: 16px;
+            font-size: 11px; color: rgba(255,255,255,0.25);
+            letter-spacing: 2px; z-index: 2; pointer-events: none;
+        }
+        /* Search bar */
+        .search-bar {
+            display: flex; gap: 8px; margin-bottom: 20px; position: relative;
+        }
+        .search-bar input {
+            flex: 1; padding: 10px 16px 10px 36px;
+            background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+            color: var(--text); font-size: 13px; font-family: inherit;
+            outline: none; transition: var(--transition);
+        }
+        .search-bar input:focus { border-color: var(--accent); background: rgba(0,0,0,0.5); }
+        .search-bar input::placeholder { color: var(--text-muted); }
+        .search-icon {
+            position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+            color: var(--text-muted); font-size: 13px; pointer-events: none;
+        }
+        .search-count {
+            font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);
+            letter-spacing: 1px; align-self: center; white-space: nowrap;
+        }
+        /* Compact world row */
+        .world-row {
+            display: flex; align-items: center; gap: 16px;
+            padding: 12px 16px; border: 1px solid var(--border);
+            margin-bottom: -1px; cursor: pointer; transition: var(--transition);
+        }
+        .world-row:hover { background: var(--bg-2); border-color: var(--border-hover); z-index: 1; }
+        .world-row.active { border-color: var(--accent); background: rgba(124,168,255,0.05); z-index: 1; }
+        .world-row-title { font-size: 14px; letter-spacing: 1px; color: #fff; min-width: 120px; white-space: nowrap; }
+        .world-row-meta {
+            flex: 1; font-size: 11px; color: var(--text-muted);
+            font-family: var(--font-mono); letter-spacing: 1px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .world-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        @media (max-width: 900px) {
+            .editor-split { flex-direction: column; }
+            .editor-right { width: 100%; height: 300px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="layout">
+
+    <!-- Topbar -->
+    <header class="topbar">
+        <div class="topbar-logo">
+            <button class="btn btn-icon" onclick="document.querySelector('.layout').classList.toggle('sidebar-collapsed')" style="margin-right: 12px; padding: 4px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+            <span>MAERS&middot;灵镜</span>
+        </div>
+        <div class="topbar-title">世界观测</div>
+        <div class="topbar-actions">
+            <a href="http://localhost:3001/" target="_blank" class="btn btn-sm" style="color:var(--text);border-color:var(--border-hover)">&#128065; 全知视界</a>
+        </div>
+    </header>
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-label">灵镜导航</div>
+        <a href="index-admin.html" class="nav-item">
+            <span class="icon">&#127756;</span> 圆桌
+        </a>
+        <a href="world-editor-admin.html" class="nav-item active">
+            <span class="icon">&#9678;</span> 世界观测
+        </a>
+        <a href="chapter-editor-admin.html" class="nav-item">
+            <span class="icon">&#10022;</span> 记事本
+        </a>
+    </nav>
+
+    <!-- Main -->
+    <main class="editor-split">
+        <!-- Left: List -->
+        <div class="editor-left">
+            <div class="page-header">
+                <div>
+                    <h1>世界观测</h1>
+                    <div class="subtitle">观测所有已构筑的世界 &middot; 执行干涉</div>
+                </div>
+                <button class="btn btn-primary" onclick="openCreateWorldModal()">&#xff0b; 构筑世界</button>
+            </div>
+
+            <div class="search-bar">
+                <span class="search-icon">⌕</span>
+                <input type="text" id="world-search" placeholder="搜索世界名称 / 拼音首字母 (e.g. ywsj)" oninput="filterWorlds()">
+                <span class="search-count" id="search-count"></span>
+            </div>
+
+            <div id="worlds-grid">
+                <div class="empty-state" style="height: 200px;">
+                    <div class="icon">◌</div>
+                    <p>正在感知世界...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Live Preview -->
+        <div class="editor-right" id="preview-container">
+            <div class="preview-label">圆桌视界 (拖拽视角 / 缩放观测)</div>
+            <canvas id="preview-canvas"></canvas>
+        </div>
+    </main>
+</div>
+
+<!-- Create/Edit World Modal -->
+<div class="modal-backdrop" id="world-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="modal-title">构筑世界</h2>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>世界 ID</label>
+                <input type="text" id="edit-world-id" placeholder="world-1">
+            </div>
+            <div class="form-group">
+                <label>名称</label>
+                <input type="text" id="edit-title" placeholder="一位世界">
+            </div>
+            <div class="form-group span-2">
+                <label>简介 (HTML)</label>
+                <textarea id="edit-brief" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>半径</label>
+                <input type="number" id="edit-radius" value="1.5" step="0.1" min="0.3" max="5">
+            </div>
+            <div class="form-group">
+                <label>被分化世界（溯源）</label>
+                <select id="edit-parent">
+                    <option value="">— 无（一位世界）</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>坐标 X</label>
+                <input type="number" id="edit-x" value="0" step="0.5">
+            </div>
+            <div class="form-group">
+                <label>坐标 Y（高度）</label>
+                <input type="number" id="edit-y" value="3.5" step="0.5">
+            </div>
+            <div class="form-group span-2">
+                <label>坐标 Z</label>
+                <input type="number" id="edit-z" value="0" step="0.5">
+            </div>
+            <div class="form-group span-2">
+                <div class="toggle-row">
+                    <label>状态 — 已具象（降临圆桌）</label>
+                    <label class="toggle">
+                        <input type="checkbox" id="edit-status" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn" onclick="closeModal()">取消干涉</button>
+            <button class="btn btn-primary" onclick="saveWorld()">确认构筑</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="./plugins/pinyin-search.js"></script>
+<script>
+var API = 'http://localhost:3001/api';
+window.worlds = [];
+var editingIndex = -1;
+
+async function loadWorlds() {
+    try {
+        var res = await fetch(API + '/worlds');
+        window.worlds = await res.json();
+        renderGrid();
+        if (window.updatePreviewScene) window.updatePreviewScene();
+    } catch(e) {
+        document.getElementById('worlds-grid').innerHTML =
+            '<div class="empty-state" style="height:200px"><div class="icon">\u26a0</div><p>\u65e0\u6cd5\u8fde\u63a5\u5230\u672c\u5730\u670d\u52a1\u5668</p></div>';
+    }
+}
+
+function renderGrid(filter) {
+    var grid = document.getElementById('worlds-grid');
+    var query = filter || '';
+    var filtered = window.worlds.filter(function(w, i) {
+        w._origIdx = i;
+        return PinyinSearch.fuzzyMatch(query, w.title) || PinyinSearch.fuzzyMatch(query, w.id);
+    });
+
+    document.getElementById('search-count').textContent = query ? filtered.length + '/' + window.worlds.length : window.worlds.length + ' 个世界';
+
+    if (!filtered.length) {
+        grid.innerHTML = '<div class="empty-state" style="height:120px"><p>' + (query ? '无匹配结果' : '混沌之中尚无世界') + '</p></div>';
+        return;
+    }
+    grid.innerHTML = filtered.map(function(w) {
+        var i = w._origIdx;
+        var parentW = window.worlds.find(function(x){ return x.id === w.parentId; });
+        var typeTxt = w.parentId ? '←' + (parentW ? parentW.title : w.parentId) : '一位';
+        var statusClass = w.status === 'published' ? 'published' : 'draft';
+        var statusText = w.status === 'published' ? '具' : '混';
+        return '<div class="world-row' + (currentHighlightedId === w.id ? ' active' : '') + '" data-id="' + w.id + '" onclick="toggleHighlightWorld(\'' + w.id + '\', event)">' +
+            '<span class="world-row-title">' + w.title + '</span>' +
+            '<span class="badge badge-' + statusClass + '" style="font-size:9px">' + statusText + '</span>' +
+            '<span class="world-row-meta">' + typeTxt + ' \u00b7 R' + w.radius + ' \u00b7 BH' + (w.blackholes||[]).length + ' \u00b7 ' + stripHtml(w.brief) + '</span>' +
+            '<span class="world-row-actions">' +
+                '<button class="btn btn-sm" onclick="editWorld(' + i + ')">\u5e72\u6d89</button>' +
+                '<button class="btn btn-sm btn-danger" onclick="deleteWorld(' + i + ')">\u62b9\u9664</button>' +
+            '</span>' +
+        '</div>';
+    }).join('');
+}
+
+function filterWorlds() {
+    var q = document.getElementById('world-search').value;
+    renderGrid(q);
+}
+
+function stripHtml(html) {
+    var d = document.createElement('div');
+    d.innerHTML = html || '';
+    return d.textContent || '';
+}
+
+var currentHighlightedId = null;
+function toggleHighlightWorld(id, event) {
+    if (event && (event.target.closest('.btn') || event.target.tagName === 'A')) return;
+    if (currentHighlightedId === id) {
+        currentHighlightedId = null;
+    } else {
+        currentHighlightedId = id;
+    }
+    document.querySelectorAll('.card').forEach(function(card) {
+        if (card.dataset.id === currentHighlightedId) {
+            card.classList.add('active');
+        } else {
+            card.classList.remove('active');
+        }
+    });
+    if (window.setHighlightedWorld) {
+        window.setHighlightedWorld(currentHighlightedId);
+    }
+}
+
+function openCreateWorldModal() {
+    editingIndex = -1;
+    document.getElementById('modal-title').textContent = '\u6784\u7b51\u4e16\u754c';
+    document.getElementById('edit-world-id').value = '';
+    document.getElementById('edit-world-id').disabled = false;
+    document.getElementById('edit-title').value = '';
+    document.getElementById('edit-brief').value = '';
+    document.getElementById('edit-radius').value = '1.5';
+    document.getElementById('edit-x').value = '0';
+    document.getElementById('edit-y').value = '3.5';
+    document.getElementById('edit-z').value = '0';
+    document.getElementById('edit-status').checked = true;
+    populateParentSelect();
+    document.getElementById('world-modal').classList.add('open');
+}
+
+function editWorld(i) {
+    editingIndex = i;
+    var w = window.worlds[i];
+    document.getElementById('modal-title').textContent = '\u5e72\u6d89\u4e16\u754c';
+    document.getElementById('edit-world-id').value = w.id;
+    document.getElementById('edit-world-id').disabled = true;
+    document.getElementById('edit-title').value = w.title;
+    document.getElementById('edit-brief').value = w.brief || '';
+    document.getElementById('edit-radius').value = w.radius;
+    document.getElementById('edit-x').value = w.position ? w.position.x : 0;
+    document.getElementById('edit-y').value = w.position ? w.position.y : 3.5;
+    document.getElementById('edit-z').value = w.position ? w.position.z : 0;
+    document.getElementById('edit-status').checked = w.status === 'published';
+    populateParentSelect(w.parentId || '', w.id);
+    document.getElementById('world-modal').classList.add('open');
+}
+
+function populateParentSelect(selectedId, excludeId) {
+    selectedId = selectedId || '';
+    excludeId = excludeId || '';
+    var sel = document.getElementById('edit-parent');
+    sel.innerHTML = '<option value="">\u2014 \u65e0\uff08\u4e00\u4f4d\u4e16\u754c\uff09</option>';
+    window.worlds.forEach(function(w) {
+        if (w.id === excludeId) return;
+        var opt = document.createElement('option');
+        opt.value = w.id;
+        opt.textContent = w.title;
+        if (w.id === selectedId) opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+
+function closeModal() {
+    document.getElementById('world-modal').classList.remove('open');
+}
+
+async function saveWorld() {
+    var id = document.getElementById('edit-world-id').value.trim();
+    if (!id) { alert('ID \u4e0d\u80fd\u4e3a\u7a7a'); return; }
+
+    var data = {
+        id: id,
+        title: document.getElementById('edit-title').value.trim() || '\u672a\u547d\u540d\u4e16\u754c',
+        brief: document.getElementById('edit-brief').value,
+        position: {
+            x: parseFloat(document.getElementById('edit-x').value),
+            y: parseFloat(document.getElementById('edit-y').value),
+            z: parseFloat(document.getElementById('edit-z').value),
+        },
+        radius: parseFloat(document.getElementById('edit-radius').value),
+        parentId: document.getElementById('edit-parent').value || null,
+        blackholes: editingIndex === -1 ? [] : (window.worlds[editingIndex].blackholes || []),
+        status: document.getElementById('edit-status').checked ? 'published' : 'draft',
+        createdAt: editingIndex === -1 ? new Date().toISOString() : window.worlds[editingIndex].createdAt,
+    };
+
+    if (editingIndex === -1) window.worlds.push(data);
+    else window.worlds[editingIndex] = data;
+
+    await saveToServer();
+    closeModal();
+    renderGrid();
+    if (window.updatePreviewScene) window.updatePreviewScene();
+}
+
+async function deleteWorld(i) {
+    if (!confirm('\u786e\u5b9a\u5f7b\u5e95\u62b9\u9664\u300c' + window.worlds[i].title + '\u300d\uff1f\u6b64\u64cd\u4f5c\u5c06\u5bf9\u7075\u955c\u4ea7\u751f\u4e0d\u53ef\u64a4\u9500\u7684\u540e\u679c\u3002')) return;
+    window.worlds.splice(i, 1);
+    await saveToServer();
+    renderGrid();
+    if (window.updatePreviewScene) window.updatePreviewScene();
+}
+
+async function saveToServer() {
+    try {
+        await fetch(API + '/worlds', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(window.worlds),
+        });
+        toast('\u4fdd\u5b58\u6210\u529f', 'success');
+    } catch(e) {
+        toast('\u4fdd\u5b58\u5931\u8d25: ' + e.message, 'error');
+    }
+}
+
+function toast(msg, type) {
+    type = type || 'success';
+    var el = document.createElement('div');
+    el.className = 'toast toast-' + type;
+    el.textContent = msg;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(function(){ el.remove(); }, 3000);
+}
+
+loadWorlds();
+</script>
+
+<!-- Three.js Preview -->
+<script type="importmap">
+{
+    "imports": {
+        "three": "./plugins/three/three.module.js",
+        "three/addons/controls/OrbitControls.js": "./plugins/three/OrbitControls.js"
+    }
+}
+</script>
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    let scene, camera, renderer, controls;
+    let sphereGroup = new THREE.Group();
+    let table;
+
+    function createDarkMesh(geometry, edgeThreshold) {
+        edgeThreshold = edgeThreshold === undefined ? 1 : edgeThreshold;
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            side: THREE.DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        const edges = new THREE.EdgesGeometry(geometry, edgeThreshold);
+        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({
+            color: 0xffffff,
+            linewidth: 1,
+            transparent: true,
+            opacity: 0.9
+        }));
+        mesh.add(line);
+        return mesh;
+    }
+
+    function initPreview() {
+        const container = document.getElementById('preview-container');
+        const canvas = document.getElementById('preview-canvas');
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000);
+        scene.fog = new THREE.FogExp2(0x000000, 0.015);
+        scene.add(sphereGroup);
+
+        camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(0, 10, 22);
+
+        renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxDistance = 100;
+
+        window.addEventListener('resize', () => {
+            if (!container) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        renderer.setAnimationLoop(() => {
+            controls.update();
+            renderer.render(scene, camera);
+        });
+    }
+
+    window.updatePreviewScene = function() {
+        if (!scene) return;
+
+        while(sphereGroup.children.length > 0){
+            sphereGroup.remove(sphereGroup.children[0]);
+        }
+
+        let maxDistance = 12;
+        window.worlds.forEach(w => {
+            const r = w.radius || 1.5;
+            const x = w.position ? w.position.x : 0;
+            const z = w.position ? w.position.z : 0;
+            const dist = Math.sqrt(x*x + z*z) + r + 5;
+            if (dist > maxDistance) maxDistance = dist;
+        });
+
+        const gridHelper = new THREE.PolarGridHelper(maxDistance + 5, 64, 8, 64, 0xffffff, 0xffffff);
+        gridHelper.material.transparent = true;
+        gridHelper.material.opacity = 0.1;
+        gridHelper.position.y = -8;
+        sphereGroup.add(gridHelper);
+
+        const outerRadius = maxDistance;
+        const innerRadius = 3.5;
+        const halfDepth = 0.3;
+        const points = [];
+        points.push(new THREE.Vector2(innerRadius, -halfDepth));
+        points.push(new THREE.Vector2(outerRadius, -halfDepth));
+        points.push(new THREE.Vector2(outerRadius, halfDepth));
+        points.push(new THREE.Vector2(innerRadius, halfDepth));
+        points.push(new THREE.Vector2(innerRadius, -halfDepth));
+
+        const tableGeometry = new THREE.LatheGeometry(points, 64);
+        table = createDarkMesh(tableGeometry, 20);
+        sphereGroup.add(table);
+
+        window.worlds.forEach(w => {
+            const radius = w.radius || 1.5;
+            const x = w.position ? w.position.x : 0;
+            const y = w.position ? w.position.y : 3.5;
+            const z = w.position ? w.position.z : 0;
+
+            const geo = new THREE.IcosahedronGeometry(radius, 2);
+            const mesh = createDarkMesh(geo, 0);
+
+            if (w.status !== 'published') {
+                mesh.material.transparent = true;
+                mesh.material.opacity = 0.3;
+                mesh.children[0].material.opacity = 0.2;
+            }
+
+            mesh.position.set(x, y, z);
+            mesh.userData.worldId = w.id;
+
+            if (w.parentId) {
+                table.add(mesh);
+            } else {
+                sphereGroup.add(mesh);
+            }
+        });
+    };
+
+    window.setHighlightedWorld = function(id) {
+        if (!scene) return;
+        const meshes = [];
+        sphereGroup.children.forEach(c => {
+            if (c.userData && c.userData.worldId) meshes.push(c);
+        });
+        if (table) {
+            table.children.forEach(c => {
+                if (c.userData && c.userData.worldId) meshes.push(c);
+            });
+        }
+        meshes.forEach(mesh => {
+            const isHighlighted = (mesh.userData.worldId === id);
+            const line = mesh.children[0];
+            if (isHighlighted) {
+                line.material.color.setHex(0x7ca8ff);
+                line.material.opacity = 1;
+                mesh.material.color.setHex(0x112233);
+            } else {
+                line.material.color.setHex(0xffffff);
+                line.material.opacity = mesh.material.transparent ? 0.2 : 0.9;
+                mesh.material.color.setHex(0x000000);
+            }
+        });
+    };
+
+    initPreview();
+    if (window.worlds && window.worlds.length > 0) {
+        window.updatePreviewScene();
+    }
+</script>
+
+</body>
+</html>

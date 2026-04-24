@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>构灵人 · 灵镜 — 圆桌</title>
+    <link rel="stylesheet" href="./css/admin.css">
+    <style>
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .stat-card {
+            border: 1px solid var(--border);
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-family: var(--font-mono);
+            color: var(--text);
+        }
+        .stat-value.accent { color: var(--accent); }
+        .stat-value.success { color: var(--success); }
+        .stat-value.muted { color: var(--text-muted); }
+
+        .quick-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 32px;
+        }
+
+        .recent-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            margin-bottom: -1px;
+            transition: var(--transition);
+        }
+        .recent-item:hover { background: var(--bg-2); border-color: var(--border-hover); }
+        .recent-item-title { font-size: 15px; letter-spacing: 1px; margin-bottom: 4px; }
+        .recent-item-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            font-family: var(--font-mono);
+        }
+        .recent-item-actions { display: flex; gap: 8px; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 2px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            font-family: var(--font-mono);
+        }
+        .badge-published { border: 1px solid var(--success-dim); color: var(--success); }
+        .badge-draft { border: 1px solid var(--border); color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+<div class="layout">
+
+    <!-- Topbar -->
+    <header class="topbar">
+        <div class="topbar-logo">
+            <button class="btn btn-icon" onclick="document.querySelector('.layout').classList.toggle('sidebar-collapsed')" style="margin-right: 12px; padding: 4px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+            <span>MAERS&middot;灵镜</span>
+        </div>
+        <div class="topbar-title">圆桌</div>
+        <div class="topbar-actions">
+        </div>
+    </header>
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-label">灵镜导航</div>
+        <a href="index-admin.html" class="nav-item active">
+            <span class="icon">&#127756;</span> 圆桌
+        </a>
+        <a href="world-editor-admin.html" class="nav-item">
+            <span class="icon">&#9678;</span> 世界观测
+        </a>
+        <a href="chapter-editor-admin.html" class="nav-item">
+            <span class="icon">&#10022;</span> 记事本
+        </a>
+    </nav>
+
+    <!-- Main -->
+    <main class="main">
+
+        <!-- Stats -->
+        <div class="section-title">圆桌总览</div>
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-label">世界总数</div>
+                <div class="stat-value accent" id="stat-worlds">&mdash;</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">已具象</div>
+                <div class="stat-value success" id="stat-published">&mdash;</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">混沌未明</div>
+                <div class="stat-value muted" id="stat-draft">&mdash;</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">存在记录 (章节)</div>
+                <div class="stat-value" id="stat-chapters">&mdash;</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">一位世界</div>
+                <div class="stat-value" id="stat-primary">&mdash;</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">分化世界</div>
+                <div class="stat-value muted" id="stat-derived">&mdash;</div>
+            </div>
+        </div>
+
+
+        <!-- World list -->
+        <div class="section-title">世界列表</div>
+        <div id="world-list"></div>
+
+    </main>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+const API = 'http://localhost:3001/api';
+
+async function loadDashboard() {
+    try {
+        const res = await fetch(API + '/worlds');
+        const worlds = await res.json();
+
+        document.getElementById('stat-worlds').textContent = worlds.length;
+        document.getElementById('stat-published').textContent = worlds.filter(function(w){ return w.status === 'published'; }).length;
+        document.getElementById('stat-draft').textContent = worlds.filter(function(w){ return w.status !== 'published'; }).length;
+        document.getElementById('stat-primary').textContent = worlds.filter(function(w){ return !w.parentId; }).length;
+        document.getElementById('stat-derived').textContent = worlds.filter(function(w){ return w.parentId; }).length;
+
+        var chapterCounts = await Promise.all(worlds.map(async function(w) {
+            try {
+                var cRes = await fetch(API + '/chapters/' + w.id);
+                var chs = await cRes.json();
+                return chs.length;
+            } catch(e) { return 0; }
+        }));
+        var totalChapters = chapterCounts.reduce(function(a, b) { return a + b; }, 0);
+        document.getElementById('stat-chapters').textContent = totalChapters;
+
+        renderWorldList(worlds, chapterCounts);
+    } catch(e) {
+        document.getElementById('world-list').innerHTML =
+            '<div class="recent-item" style="justify-content:center;color:var(--text-muted)">\u65e0\u6cd5\u8fde\u63a5\u5230\u672c\u5730\u670d\u52a1\u5668</div>';
+    }
+}
+
+function renderWorldList(worlds, chapterCounts) {
+    var list = document.getElementById('world-list');
+    if (!worlds.length) {
+        list.innerHTML = '<div class="recent-item" style="justify-content:center;color:var(--text-muted)">' +
+            '\u7075\u955c\u4e4b\u4e2d\u5c1a\u65e0\u4e16\u754c \u2014 <a href="world-editor-admin.html" style="color:var(--text);margin-left:6px;text-decoration:underline;">\u5f00\u59cb\u6784\u7b51 \u2192</a>' +
+        '</div>';
+        return;
+    }
+
+    list.innerHTML = worlds.map(function(w, i) {
+        var statusClass = w.status === 'published' ? 'published' : 'draft';
+        var statusText = w.status === 'published' ? '\u5df2\u5177\u8c61' : '\u6df7\u6c8c';
+        var typeText = w.parentId ? '\u5206\u5316\u4e16\u754c' : '\u4e00\u4f4d\u4e16\u754c';
+        return '<div class="recent-item">' +
+            '<div>' +
+                '<div class="recent-item-title">' + w.title +
+                    ' <span class="badge badge-' + statusClass + '" style="margin-left:8px;font-size:9px">' + statusText + '</span>' +
+                '</div>' +
+                '<div class="recent-item-meta">' + typeText + ' \u00b7 ' + chapterCounts[i] + ' \u5904\u8bb0\u5f55</div>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

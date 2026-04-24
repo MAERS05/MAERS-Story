@@ -1,0 +1,78 @@
+/* ================================================
+   MAERS-Story Design Tokens
+   共享设计变量 — 前台和后台均引用此文件
+   ================================================ */
+
+/* Local fonts — no CDN dependency */
+@font-face {
+    font-family: 'Noto Serif SC';
+    font-weight: 300;
+    font-style: normal;
+    src: url('../plugins/fonts/noto-serif-sc/300.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Noto Serif SC';
+    font-weight: 400;
+    font-style: normal;
+    src: url('../plugins/fonts/noto-serif-sc/400.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Noto Serif SC';
+    font-weight: 700;
+    font-style: normal;
+    src: url('../plugins/fonts/noto-serif-sc/700.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'JetBrains Mono';
+    font-weight: 400;
+    font-style: normal;
+    src: url('../plugins/fonts/jetbrains-mono/400.woff2') format('woff2');
+}
+
+:root {
+    /* Color Palette - Minimalist Archive */
+    --bg:             #000000;
+    --bg-2:           #050505;
+    --bg-3:           #0a0a0a;
+    --bg-glass:       transparent;
+
+    --border:         rgba(255, 255, 255, 0.15);
+    --border-hover:   rgba(255, 255, 255, 0.4);
+    --border-glow:    transparent;
+
+    --text:           #ffffff;
+    --text-muted:     rgba(255, 255, 255, 0.4);
+
+    /* Muted Accent - Almost white/gray */
+    --accent:         #e0e0e0;
+    --accent-hover:   #ffffff;
+    --accent-dim:     rgba(255, 255, 255, 0.05);
+    --accent-glow:    none;
+
+    --danger:         #ff5555;
+    --danger-dim:     rgba(255, 85, 85, 0.1);
+
+    --success:        #55ff55;
+    --success-dim:    rgba(85, 255, 85, 0.1);
+
+    /* Typography */
+    --font-serif:  'Noto Serif SC', serif;
+    --font-mono:   'JetBrains Mono', monospace;
+
+    /* Misc */
+    --radius:         0px;
+    --radius-sm:      0px;
+    --transition:     all 0.2s ease-out;
+    --glass-blur:     none;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }

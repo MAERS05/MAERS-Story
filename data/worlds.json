@@ -1,0 +1,34 @@
+[
+  {
+    "id": "world-1",
+    "title": "一位世界",
+    "brief": "<p>这是当前所在世界的概览档案。请确认坐标锚点后，进入底层架构获取完整数据。</p>",
+    "position": {
+      "x": 0,
+      "y": 3.5,
+      "z": 0
+    },
+    "radius": 2.2,
+    "parentId": null,
+    "blackholes": [
+      "world-2"
+    ],
+    "status": "published",
+    "createdAt": "2026-04-23T00:00:00Z"
+  },
+  {
+    "id": "world-2",
+    "title": "二位世界-方形暗狱",
+    "brief": "<p>档案代号：方形暗狱。一座被永夜笼罩、严丝合缝的封闭式建筑。</p><p>内部充满冷黯的光线、扭曲的轮廓以及病态的阶级统治。疑似发生过大规模异变。</p>",
+    "position": {
+      "x": 7,
+      "y": 2,
+      "z": 0
+    },
+    "radius": 1.1,
+    "parentId": "world-1",
+    "blackholes": [],
+    "status": "published",
+    "createdAt": "2026-04-23T00:00:00Z"
+  }
+]
