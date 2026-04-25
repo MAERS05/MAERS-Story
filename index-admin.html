@@ -85,6 +85,7 @@
         </div>
         <div class="topbar-title">圆桌</div>
         <div class="topbar-actions">
+            <a href="http://localhost:3001/" target="_blank" class="btn btn-sm" style="color:var(--text);border-color:var(--border-hover)">&#128065; 全知视界</a>
         </div>
     </header>
 
@@ -194,6 +195,10 @@ function renderWorldList(worlds, chapterCounts) {
                     ' <span class="badge badge-' + statusClass + '" style="margin-left:8px;font-size:9px">' + statusText + '</span>' +
                 '</div>' +
                 '<div class="recent-item-meta">' + typeText + ' \u00b7 ' + chapterCounts[i] + ' \u5904\u8bb0\u5f55</div>' +
+            '</div>' +
+            '<div class="recent-item-actions">' +
+                '<a href="world-editor-admin.html" class="btn btn-sm" style="font-size:11px">\u5e72\u6d89</a>' +
+                '<a href="chapter-editor-admin.html?world=' + w.id + '" class="btn btn-sm" style="font-size:11px">\u8bb0\u4e8b\u672c</a>' +
             '</div>' +
         '</div>';
     }).join('');

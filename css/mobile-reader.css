@@ -57,9 +57,9 @@
     }
 
     /* ── Chapter body ── */
-    #ch-content {
+    body.pure-reading #ch-content {
         font-size: 15px;
-        line-height: 1.7;
+        line-height: 2;
     }
 
     /* ── Page pagination ── */

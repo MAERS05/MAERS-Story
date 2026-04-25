@@ -5,7 +5,7 @@
 (function(window) {
     // GB2312 pinyin initial boundaries (proven, compact approach)
     // Each entry: [unicodeChar, pinyinInitial]
-    var BOUNDS = '\u5765B\u58F0C\u5BF5D\u5E02E\u5F20F\u6208G\u6862H\u6B20J\u6D9FK\u6EF9L\u7322M\u7691N\u7808O\u7A46P\u7C30Q\u7E82R\u7FCE S\u82B9T\u8516W\u8760X\u8C22Y\u94B0Z';
+    var BOUNDS = '\u5765B\u58F0C\u5BF5D\u5E02E\u5F20F\u6208G\u6862H\u6B20J\u6D9FK\u6EF9L\u7322M\u7691N\u7808O\u7A46P\u7C30Q\u7E82R\u7FCES\u82B9T\u8516W\u8760X\u8C22Y\u94B0Z';
 
     // Parse bounds into array
     var boundArr = [];

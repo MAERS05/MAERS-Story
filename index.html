@@ -130,10 +130,70 @@
             min-height: 0;
             width: 100%;
         }
+        /* ── #ch-content typography — always active, matches Quill editor ── */
+        #ch-content {
+            font-size: 15px;
+            line-height: 2;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+        #ch-content p {
+            margin-bottom: 0;
+            white-space: pre-wrap; /* preserve tab indentation from editor */
+        }
+        #ch-content h1 {
+            font-size: 2em; font-weight: bold;
+            margin: 0.67em 0;
+        }
+        #ch-content h2 {
+            font-size: 1.5em; font-weight: bold;
+            margin: 0.83em 0;
+        }
+        #ch-content h3 {
+            font-size: 1.17em; font-weight: bold;
+            margin: 1em 0;
+        }
+        #ch-content blockquote {
+            border-left: 2px solid rgba(255,255,255,0.3);
+            padding-left: 16px;
+            color: rgba(255,255,255,0.6);
+            margin: 1em 0;
+        }
+        #ch-content a {
+            color: #7ca8ff;
+            text-decoration: underline;
+        }
+        #ch-content strong {
+            color: #fff;
+        }
+        #ch-content em {
+            color: rgba(255,255,255,0.75);
+        }
+        #ch-content pre.ql-syntax {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            overflow-x: auto;
+            margin: 1em 0;
+            color: rgba(255,255,255,0.8);
+        }
+        #ch-content ol,
+        #ch-content ul {
+            padding-left: 1.5em;
+            margin: 0.5em 0;
+        }
+        #ch-content img {
+            max-width: 100%;
+            height: auto;
+        }
+        /* Pure reading layout — flex + scroll */
         body.pure-reading #ch-content {
-            flex: 1; /* Take up available space */
-            min-height: 0; /* CRITICAL for flexbox scroll to work */
-            overflow-y: auto; /* Allow scrolling within the page/chapter */
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
             padding-right: 10px;
         }
         body.pure-reading #ch-content::-webkit-scrollbar { width: 4px; }
@@ -666,7 +726,7 @@
         gotoText.addEventListener('click', (e) => {
             e.stopPropagation();
             const targetTitle = gotoText.innerText;
-            const targetEntry = sphereMeshes.find(e => e.worldData.title === targetTitle);
+            const targetEntry = sphereMeshes.find(s => s.worldData.title === targetTitle);
             if (targetEntry) triggerExpand(targetEntry);
         });
 
@@ -697,7 +757,6 @@
                 return raw ? JSON.parse(raw) : null;
             } catch { return null; }
         }
-
 
         async function triggerExpand(entry) {
             if (isExpanded) return;
@@ -815,25 +874,37 @@
             // Set subtle title label
             document.getElementById('ch-title-label').textContent = ch.title;
 
+            // Activate chapter view FIRST so container is measurable
+            document.getElementById('reader-brief-view').classList.add('hidden');
+            document.getElementById('reader-chapter-view').classList.add('active');
+
             // Split content by manual page-break markers (<hr class="page-break">)
             const rawContent = ch.content || '<p>（本章暂无内容）</p>';
-            
+            let manualChunks;
+
             if (readMode === 'scroll') {
-                pageChunks = [rawContent];
+                manualChunks = [rawContent];
             } else {
-                pageChunks = rawContent
+                manualChunks = rawContent
                     .split(/<hr[^>]*class\s*=\s*["']page-break["'][^>]*\/?>/gi)
                     .map(s => s.trim())
                     .filter(s => s.length > 0);
             }
+            if (manualChunks.length === 0) manualChunks = [rawContent];
 
-            if (pageChunks.length === 0) pageChunks = [rawContent];
+            // Auto-split chunks that overflow the viewport
+            if (readMode === 'page') {
+                pageChunks = autoSplitToFitViewport(manualChunks);
+            } else {
+                pageChunks = manualChunks;
+            }
+
             totalPages = pageChunks.length;
-            
+
             if (startPage === -1) {
                 currentPageIdx = totalPages - 1;
             } else {
-                currentPageIdx = Math.min(startPage || 0, totalPages - 1);
+                currentPageIdx = Math.min(startPage, totalPages - 1);
             }
 
             renderPage();
@@ -841,12 +912,64 @@
             // Chapter-level nav sidebar highlight
             document.querySelectorAll('.ch-sidebar-item').forEach((el, i) =>
                 el.classList.toggle('active', i === currentChapterIdx));
-            document.getElementById('reader-brief-view').classList.add('hidden');
-            document.getElementById('reader-chapter-view').classList.add('active');
             document.querySelector('#reader-overlay .content').scrollTop = 0;
             document.getElementById('ch-content').scrollTop = 0;
 
             saveReadingProgress();
+        }
+
+        // ─── Auto-pagination: split chunks that overflow the screen ───
+        function autoSplitToFitViewport(chunks) {
+            const container = document.getElementById('ch-content');
+            if (!container) return chunks;
+
+            // Force synchronous reflow so flex layout is fully computed
+            void container.offsetHeight;
+            const availH = container.clientHeight;
+
+            // Safety: container must be properly sized (at least 300px tall)
+            if (availH < 300) return chunks;
+
+            const pages = [];
+
+            chunks.forEach(html => {
+                // Render directly into the REAL container for 100% accurate measurement
+                container.innerHTML = html;
+                void container.offsetHeight; // force reflow
+
+                // If content fits within one screen, keep as-is
+                if (container.scrollHeight <= availH) {
+                    pages.push(html);
+                    return;
+                }
+
+                // Content overflows — walk children and group into screen-sized pages
+                const kids = Array.from(container.children);
+                if (!kids.length) { pages.push(html); return; }
+
+                let batch = [];
+                let pageOrigin = kids[0].offsetTop;
+
+                for (let i = 0; i < kids.length; i++) {
+                    const kid = kids[i];
+                    const relBottom = (kid.offsetTop - pageOrigin) + kid.offsetHeight;
+
+                    if (relBottom > availH && batch.length > 0) {
+                        pages.push(batch.map(e => e.outerHTML).join('\n'));
+                        batch = [];
+                        pageOrigin = kid.offsetTop;
+                    }
+                    batch.push(kid);
+                }
+
+                if (batch.length > 0) {
+                    pages.push(batch.map(e => e.outerHTML).join('\n'));
+                }
+            });
+
+            // Clear measurement content
+            container.innerHTML = '';
+            return pages.length > 0 ? pages : chunks;
         }
 
         function renderPage() {
@@ -923,6 +1046,20 @@
             document.getElementById('ch-content').scrollTop = 0;
         }
 
+        // Unified resize handler: Three.js + auto-pagination
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                if (isPureReading && readMode === 'page' && currentChapters.length > 0 && currentChapterIdx >= 0) {
+                    renderChapter(currentPageIdx);
+                }
+            }, 300);
+        });
+
         window.addEventListener('click', (e) => {
             if (isExpanded) return;
             if (e.target.closest('#sphere-tooltip')) return;
@@ -947,13 +1084,16 @@
             isPureReading = true;
             document.body.classList.add('pure-reading');
             if (currentChapters.length > 0) {
-                const saved = getReadingProgress(currentWorldIdForReader);
-                if (saved) {
-                    const chIdx = Math.min(saved.chapterIdx, currentChapters.length - 1);
-                    openChapter(chIdx, saved.pageIdx || 0);
-                } else {
-                    openChapter(0, 0);
-                }
+                // Delay one frame so flex layout is fully computed before auto-pagination measures
+                requestAnimationFrame(() => {
+                    const saved = getReadingProgress(currentWorldIdForReader);
+                    if (saved) {
+                        const chIdx = Math.min(saved.chapterIdx, currentChapters.length - 1);
+                        openChapter(chIdx, saved.pageIdx || 0);
+                    } else {
+                        openChapter(0, 0);
+                    }
+                });
             }
         });
 
@@ -988,6 +1128,7 @@
         });
 
         // ─── 8. Animation Loop ───
+        const _scaleTarget = new THREE.Vector3();
         const clock = new THREE.Clock();
         let lastTime = 0;
 
@@ -1029,7 +1170,8 @@
 
             if (expandedEntry) {
                 const speed = 0.05;
-                expandedEntry.mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), speed);
+                _scaleTarget.set(targetScale, targetScale, targetScale);
+                expandedEntry.mesh.scale.lerp(_scaleTarget, speed);
             }
 
             if (!isPureReading) {
@@ -1039,12 +1181,6 @@
 
         animate();
 
-        // ─── 9. Resize Handler ───
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
 
         // ─── 10. Nav dot toggle ───
         const navDot = document.getElementById('nav-dot');
