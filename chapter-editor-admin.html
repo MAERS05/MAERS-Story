@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>构灵人 &middot; 灵镜 &mdash; 记事本</title>
+    <link rel="stylesheet" href="./css/admin.css">
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+    <script src="./plugins/pinyin-search.js"></script>
+    <style>
+        .chapter-layout {
+            display: flex; gap: 0; flex: 1; overflow: hidden;
+        }
+        .chapter-layout > .panel:first-child {
+            width: 280px; min-width: 220px;
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+        }
+        .chapter-layout > .panel:last-child {
+            flex: 1;
+            display: flex; flex-direction: column;
+        }
+        .chapter-list-body {
+            flex: 1; overflow-y: auto; padding: 8px 0;
+        }
+        .chapter-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; cursor: pointer;
+            border-left: 2px solid transparent;
+            transition: var(--transition);
+        }
+        .chapter-item:hover { background: var(--bg-2); }
+        .chapter-item.active {
+            background: var(--bg-3);
+            border-left-color: var(--accent);
+        }
+        .chapter-item-order {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-muted);
+            min-width: 24px;
+        }
+        .chapter-item-title { font-size: 13px; letter-spacing: 0.5px; }
+
+        /* Searchable world dropdown */
+        .world-dropdown-wrap {
+            position: relative; flex: 1; min-width: 0;
+        }
+        .world-dropdown-wrap input {
+            width: 100%; padding: 8px 12px;
+            background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+            color: var(--text); font-size: 13px; font-family: inherit;
+            outline: none; transition: var(--transition); box-sizing: border-box;
+        }
+        .world-dropdown-wrap input:focus { border-color: var(--accent); }
+        .world-dropdown-wrap input::placeholder { color: var(--text-muted); }
+        .world-dropdown-list {
+            display: none; position: absolute; top: 100%; left: 0; right: 0;
+            background: var(--bg-3); border: 1px solid var(--border-hover);
+            max-height: 240px; overflow-y: auto; z-index: 20;
+        }
+        .world-dropdown-list.open { display: block; }
+        .world-dropdown-item {
+            padding: 8px 12px; cursor: pointer; font-size: 13px;
+            transition: var(--transition); display: flex; justify-content: space-between;
+        }
+        .world-dropdown-item:hover { background: var(--bg-2); }
+        .world-dropdown-item.active { background: var(--accent-dim); color: #fff; }
+        .world-dropdown-item .wdi-meta {
+            font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);
+        }
+
+        .editor-title-input {
+            display: none; /* shown by JS */
+            width: 100%;
+            box-sizing: border-box;
+            border: none !important;
+            border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+            border-radius: 0 !important;
+            outline: none !important;
+            background: transparent !important;
+            color: var(--text);
+            font-size: 20px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            font-family: inherit;
+            padding: 16px 32px;
+            text-align: left;
+        }
+        .editor-title-input::placeholder {
+            color: rgba(255,255,255,0.25);
+        }
+
+        .editor-footer {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 20px;
+            border-top: 1px solid var(--border);
+            font-size: 12px; color: var(--text-muted);
+        }
+        .save-indicator { display: flex; align-items: center; gap: 8px; }
+        .save-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+        .save-dot.unsaved { background: var(--warning, #ffa726); }
+
+        #quill-editor .ql-toolbar {
+            border: none !important;
+            border-bottom: 1px solid var(--border) !important;
+            background: var(--bg-2);
+        }
+        #quill-editor .ql-container {
+            border: none !important; flex: 1; overflow: auto;
+        }
+        .ql-snow .ql-stroke { stroke: var(--text-muted) !important; }
+        .ql-snow .ql-fill { fill: var(--text-muted) !important; }
+        .ql-snow .ql-picker-label { color: var(--text-muted) !important; }
+        .ql-snow .ql-active .ql-stroke { stroke: var(--text) !important; }
+        .ql-snow .ql-active .ql-fill { fill: var(--text) !important; }
+        .ql-editor {
+            font-size: 15px; line-height: 2; color: var(--text);
+            padding: 20px 32px;
+            position: relative;
+        }
+        .ql-editor blockquote {
+            border-left: 2px solid var(--accent);
+            padding-left: 16px;
+            color: var(--text-muted);
+            margin: 1em 0;
+        }
+        .ql-editor a { color: #7ca8ff; }
+        .ql-editor strong { color: #fff; }
+        .ql-editor::-webkit-scrollbar { width: 4px; }
+        .ql-editor::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+        .ql-editor.ql-blank::before {
+            color: rgba(255,255,255,0.4) !important;
+            font-style: normal !important;
+            letter-spacing: 1px;
+        }
+
+        /* Page break marker in editor */
+        .ql-editor hr.page-break {
+            border: none;
+            border-top: 1px dashed rgba(255,255,255,0.25);
+            margin: 32px 0;
+            position: relative;
+        }
+        .ql-editor hr.page-break::after {
+            content: '\2500\2500 \5206\9875 \2500\2500';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg-2);
+            padding: 0 12px;
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: rgba(255,255,255,0.3);
+        }
+
+        /* Custom toolbar button */
+        .ql-pagebreak { display: none !important; }
+
+        /* Quill dropdown */
+        .ql-snow .ql-picker-options {
+            background: var(--bg-3);
+            border-color: var(--border);
+            color: var(--text);
+        }
+        .ql-snow .ql-picker-item:hover { color: var(--accent); }
+
+        /* Page pagination bar (reader-style) */
+        #editor-page-nav {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 10px 20px;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .epg-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            width: 30px; height: 30px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            font-size: 11px; font-family: var(--font-mono);
+            border-radius: 3px; transition: all 0.2s;
+        }
+        .epg-btn:hover:not(.epg-active) {
+            border-color: var(--border-hover);
+            color: var(--text);
+        }
+        .epg-btn.epg-active {
+            background: rgba(255,255,255,0.1);
+            border-color: var(--accent);
+            color: var(--text);
+        }
+        .epg-btn.epg-arrow {
+            width: auto; padding: 0 10px;
+            font-size: 10px; letter-spacing: 1px;
+        }
+        .epg-ellipsis {
+            color: var(--text-muted);
+            font-size: 12px;
+            padding: 0 3px;
+            opacity: 0.4;
+        }
+        .epg-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            margin-right: 8px;
+        }
+        .epg-add {
+            background: none;
+            border: 1px dashed var(--border);
+            color: var(--text-muted);
+            width: 30px; height: 30px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 3px; transition: all 0.2s;
+            margin-left: 4px;
+        }
+        .epg-add:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+
+<div class="layout">
+
+    <!-- Topbar -->
+    <header class="topbar">
+        <div class="topbar-logo">
+            <button class="btn btn-icon" onclick="document.querySelector('.layout').classList.toggle('sidebar-collapsed')" style="margin-right: 12px; padding: 4px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+            <span>MAERS&middot;灵镜</span>
+        </div>
+
+        <div class="topbar-actions" style="margin-left:auto;">
+            <button class="btn btn-sm" id="btn-delete-chapter" onclick="deleteCurrentChapter()" style="display:none; color: #ff6b6b; border: 1px dashed rgba(255,107,107,0.3); background: transparent; margin-right: 8px;">删除本篇</button>
+            <button class="btn btn-sm btn-primary" onclick="saveCurrentChapter()">保存 Ctrl+S</button>
+        </div>
+    </header>
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-label">灵镜导航</div>
+        <a href="index-admin.html" class="nav-item">
+            <span class="icon">&#127756;</span> 圆桌
+        </a>
+        <a href="world-editor-admin.html" class="nav-item">
+            <span class="icon">&#9678;</span> 世界观测
+        </a>
+        <a href="chapter-editor-admin.html" class="nav-item active">
+            <span class="icon">&#10022;</span> 记事本
+        </a>
+    </nav>
+
+    <main class="main" style="display:flex;flex-direction:column;overflow:hidden;padding-top:0;">
+        <!-- Chapter editor layout -->
+        <div class="chapter-layout">
+
+            <!-- Left: Chapter list -->
+            <div class="panel">
+                <div class="panel-header" style="flex-direction:column; align-items:stretch; gap:16px; padding:16px;">
+                    <div style="display:flex; gap:8px;">
+                        <div class="world-dropdown-wrap">
+                            <input type="text" id="world-search-input" placeholder="搜索世界 / 拼音首字母..." onfocus="openWorldDropdown()" oninput="filterWorldDropdown()">
+                            <div class="world-dropdown-list" id="world-dropdown-list"></div>
+                        </div>
+                        <button class="btn btn-sm" onclick="openNewChapterModal()" title="新篇章">＋</button>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--text-muted); letter-spacing:1px;">
+                        <span>记录列表</span>
+                        <span id="chapter-count" style="font-family:var(--font-mono)">&mdash;</span>
+                    </div>
+                </div>
+                <div class="chapter-list-body" id="chapter-list">
+                    <div class="empty-state">
+                        <div class="icon">&#9676;</div>
+                        <p>请先选择观测的世界</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Editor -->
+            <div class="panel" id="editor-panel">
+                <!-- Chapter Title Input inside editor -->
+                <input type="text" id="chapter-title-input" placeholder="章节标题..." oninput="markUnsaved()" style="display:none;">
+
+                <!-- Quill editor mounts here -->
+                <div id="quill-editor" style="display:none; flex-direction:column; overflow:hidden;"></div>
+
+                <!-- Empty state (shown before any chapter selected) -->
+                <div class="empty-state" id="editor-empty-state">
+                    <div class="icon">&#10022;</div>
+                    <p>在左侧选择记录，或增加新篇章</p>
+                </div>
+
+                <!-- Footer -->
+                <div class="editor-footer" id="editor-footer" style="display:none">
+                    <div class="save-indicator" style="flex:1;">
+                        <div class="save-dot" id="save-dot"></div>
+                        <span id="save-label">未修改</span>
+                    </div>
+                    
+                    <!-- Page pagination bar inline -->
+                    <div id="editor-page-nav" style="border:none; padding:0; justify-content:center; flex:1;"></div>
+
+                    <div style="display:flex;align-items:center;gap:16px; flex:1; justify-content:flex-end;">
+                        <label class="toggle" title="混沌/具象化">
+                            <input type="checkbox" id="chapter-status" onchange="markUnsaved(); updateStatusLabel()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span id="status-label" style="font-size:11px;color:var(--text-muted)">混沌</span>
+                        <span id="char-count" style="font-family:var(--font-mono);font-size:11px">0 字</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- New Chapter Modal -->
+<div class="modal-backdrop" id="new-chapter-modal">
+    <div class="modal" style="width:min(420px,90vw)">
+        <div class="modal-header">
+            <h2>新增篇章</h2>
+            <button class="modal-close" onclick="closeNewChapterModal()">&times;</button>
+        </div>
+        <div class="form-grid full">
+            <div class="form-group">
+                <label>篇章标题</label>
+                <input type="text" id="new-chapter-title" placeholder="第一章 &middot; 示例">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeNewChapterModal()">取消</button>
+            <button class="btn btn-primary" onclick="createChapter()">确认</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+var API = 'http://localhost:3001/api';
+var worlds = [];
+var chapters = [];
+var currentWorldId = null;
+var currentChapterIndex = -1;
+var quill = null;
+var unsaved = false;
+
+// Init Quill
+function initQuill() {
+    if (quill) return;
+
+    var editorEl = document.getElementById('quill-editor');
+    editorEl.style.display = 'flex';
+    editorEl.style.flexDirection = 'column';
+    editorEl.style.flex = '1';
+    editorEl.style.overflow = 'hidden';
+
+    var BlockEmbed = Quill.import('blots/block/embed');
+    class PageBreakBlot extends BlockEmbed {
+        static create(value) {
+            var node = super.create(value);
+            node.setAttribute('class', 'page-break');
+            return node;
+        }
+    }
+    PageBreakBlot.blotName = 'pagebreak';
+    PageBreakBlot.tagName = 'hr';
+    Quill.register(PageBreakBlot);
+
+    quill = new Quill('#quill-editor', {
+        theme: 'snow',
+        placeholder: '在此开始写作...',
+        modules: {
+            toolbar: {
+                container: [
+                    [{ header: [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline'],
+                    ['blockquote', 'code-block'],
+                    [{ list: 'ordered' }, { list: 'bullet' }],
+                    ['link'],
+                    ['clean'],
+                    ['pagebreak']
+                ],
+                handlers: {
+                    pagebreak: function() {
+                        editorInsertPageBreak();
+                    }
+                }
+            }
+        }
+    });
+
+    // Embed title input inside the Quill container
+    var container = document.querySelector('.ql-container');
+    var editor = document.querySelector('.ql-editor');
+    var titleInput = document.getElementById('chapter-title-input');
+    if (container && editor && titleInput) {
+        container.insertBefore(titleInput, editor);
+        editor.style.paddingTop = '24px';
+    }
+
+    // Track cursor position globally for page-break insertion
+    window.lastSelectionIndex = quill.getLength();
+    quill.on('selection-change', function(range) {
+        if (range) window.lastSelectionIndex = range.index;
+    });
+
+    // Detect real user edits vs programmatic content loads
+    quill.on('text-change', function(delta, oldDelta, source) {
+        if (source === 'user' && !window.isLoadingChapter) {
+            markUnsaved();
+        }
+        updateCharCount();
+        updateEditorPageNav();
+    });
+}
+
+// Load worlds
+async function loadWorlds() {
+    try {
+        var res = await fetch(API + '/worlds');
+        worlds = await res.json();
+    } catch(e) { worlds = []; }
+
+    renderWorldDropdown();
+
+    var params = new URLSearchParams(window.location.search);
+    var preselect = params.get('world');
+    if (preselect) {
+        selectWorldById(preselect);
+    }
+}
+
+function renderWorldDropdown(filter) {
+    var list = document.getElementById('world-dropdown-list');
+    var q = (filter || '').trim();
+    var filtered = worlds.filter(function(w) {
+        if (!q) return true;
+        return PinyinSearch.fuzzyMatch(q, w.title) || PinyinSearch.fuzzyMatch(q, w.id);
+    });
+    if (!filtered.length) {
+        list.innerHTML = '<div style="padding:10px 12px;color:var(--text-muted);font-size:12px">无匹配世界</div>';
+        return;
+    }
+    list.innerHTML = filtered.map(function(w) {
+        var active = w.id === currentWorldId ? ' active' : '';
+        var typeTxt = w.parentId ? '分化' : '一位';
+        return '<div class="world-dropdown-item' + active + '" onclick="selectWorldById(\'' + w.id + '\')">' +
+            '<span>' + w.title + '</span>' +
+            '<span class="wdi-meta">' + typeTxt + '</span>' +
+        '</div>';
+    }).join('');
+}
+
+function openWorldDropdown() {
+    var list = document.getElementById('world-dropdown-list');
+    renderWorldDropdown(document.getElementById('world-search-input').value);
+    list.classList.add('open');
+}
+
+function filterWorldDropdown() {
+    var q = document.getElementById('world-search-input').value;
+    renderWorldDropdown(q);
+    document.getElementById('world-dropdown-list').classList.add('open');
+}
+
+function selectWorldById(wid) {
+    document.getElementById('world-search-input').value = (worlds.find(function(w){ return w.id === wid; }) || {}).title || '';
+    document.getElementById('world-dropdown-list').classList.remove('open');
+    if (wid !== currentWorldId) {
+        currentWorldId = wid;
+        currentChapterIndex = -1;
+        switchWorld();
+    }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.world-dropdown-wrap')) {
+        document.getElementById('world-dropdown-list').classList.remove('open');
+    }
+});
+
+async function switchWorld() {
+    var wid = currentWorldId;
+    if (!wid) return;
+    currentChapterIndex = -1;
+
+    var world = worlds.find(function(w){ return w.id === wid; });
+
+    try {
+        var res = await fetch(API + '/chapters/' + wid);
+        chapters = await res.json();
+    } catch(e) {
+        chapters = [];
+    }
+
+    renderChapterList();
+    showEditorEmpty();
+}
+
+function renderChapterList() {
+    var el = document.getElementById('chapter-list');
+    document.getElementById('chapter-count').textContent = chapters.length;
+
+    if (!chapters.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">\u25cc</div><p>\u8be5\u4e16\u754c\u5c1a\u65e0\u8bb0\u5f55</p></div>';
+        return;
+    }
+
+    el.innerHTML = chapters.map(function(ch, i) {
+        var badgeClass = ch.status === 'published' ? 'published' : 'draft';
+        var badgeText = ch.status === 'published' ? '\u5177' : '\u6df7';
+        return '<div class="chapter-item' + (i === currentChapterIndex ? ' active' : '') + '" onclick="selectChapter(' + i + ')">' +
+            '<div style="display:flex;align-items:center;gap:10px">' +
+                '<span class="chapter-item-order">' + String(ch.order).padStart(2, '0') + '</span>' +
+                '<div class="chapter-item-title">' + ch.title + '</div>' +
+            '</div>' +
+            '<span class="badge badge-' + badgeClass + '" style="font-size:9px">' + badgeText + '</span>' +
+        '</div>';
+    }).join('');
+}
+
+function selectChapter(i) {
+    if (unsaved && !confirm('\u5f53\u524d\u7bc7\u7ae0\u6709\u672a\u4fdd\u5b58\u7684\u4fee\u6539\uff0c\u786e\u5b9a\u8981\u5207\u6362\u5417\uff1f')) return;
+    currentChapterIndex = i;
+    initQuill();
+    var ch = chapters[i];
+
+    document.getElementById('chapter-title-input').style.display = 'block';
+    document.getElementById('chapter-title-input').value = ch.title;
+    document.getElementById('quill-editor').style.display = 'flex';
+    document.getElementById('editor-empty-state').style.display = 'none';
+    document.getElementById('editor-footer').style.display = 'flex';
+    document.getElementById('btn-delete-chapter').style.display = 'inline-block';
+
+    window.isLoadingChapter = true;
+    quill.root.innerHTML = ch.content || '';
+    document.getElementById('chapter-status').checked = ch.status === 'published';
+    updateStatusLabel();
+    updateCharCount();
+    updateEditorPageNav();
+    
+    // Wait for Quill's MutationObserver to fire before finalizing state
+    setTimeout(function() {
+        window.isLoadingChapter = false;
+        markSaved();
+        renderChapterList();
+    }, 100);
+}
+
+function showEditorEmpty() {
+    document.getElementById('chapter-title-input').style.display = 'none';
+    document.getElementById('quill-editor').style.display = 'none';
+    document.getElementById('editor-empty-state').style.display = 'flex';
+    document.getElementById('editor-footer').style.display = 'none';
+    document.getElementById('btn-delete-chapter').style.display = 'none';
+}
+
+function markUnsaved() {
+    unsaved = true;
+    document.getElementById('save-dot').classList.add('unsaved');
+    document.getElementById('save-label').textContent = '\u672a\u4fdd\u5b58';
+}
+function markSaved() {
+    unsaved = false;
+    document.getElementById('save-dot').classList.remove('unsaved');
+    document.getElementById('save-label').textContent = '\u5df2\u4fdd\u5b58';
+}
+
+function updateStatusLabel() {
+    var pub = document.getElementById('chapter-status').checked;
+    document.getElementById('status-label').textContent = pub ? '\u5df2\u5177\u8c61' : '\u6df7\u6c8c';
+}
+
+function updateCharCount() {
+    if (!quill) return;
+    var text = quill.getText().trim();
+    document.getElementById('char-count').textContent = text.length + ' \u5b57';
+}
+
+// Chapter CRUD
+function openNewChapterModal() {
+    if (!currentWorldId) { alert('\u8bf7\u5148\u9009\u62e9\u4e00\u4e2a\u4e16\u754c'); return; }
+    document.getElementById('new-chapter-title').value = '';
+    document.getElementById('new-chapter-modal').classList.add('open');
+}
+function closeNewChapterModal() {
+    document.getElementById('new-chapter-modal').classList.remove('open');
+}
+
+async function createChapter() {
+    var title = document.getElementById('new-chapter-title').value.trim();
+    if (!title) { alert('\u8bf7\u8f93\u5165\u7bc7\u7ae0\u6807\u9898'); return; }
+
+    var newCh = {
+        id: 'ch-' + Date.now(),
+        worldId: currentWorldId,
+        title: title,
+        content: '',
+        order: chapters.length + 1,
+        status: 'draft',
+        updatedAt: new Date().toISOString()
+    };
+    chapters.push(newCh);
+    await saveChapters();
+    closeNewChapterModal();
+    renderChapterList();
+    selectChapter(chapters.length - 1);
+}
+
+async function saveCurrentChapter() {
+    if (currentChapterIndex < 0 || !quill) return;
+    var ch = chapters[currentChapterIndex];
+    ch.title = document.getElementById('chapter-title-input').value.trim() || ch.title;
+    ch.content = quill.root.innerHTML;
+    ch.status = document.getElementById('chapter-status').checked ? 'published' : 'draft';
+    ch.updatedAt = new Date().toISOString();
+    await saveChapters();
+    markSaved();
+    renderChapterList();
+}
+
+async function deleteCurrentChapter() {
+    if (currentChapterIndex < 0) return;
+    if (!confirm('\u786e\u5b9a\u8981\u5f7b\u5e95\u5220\u9664\u8be5\u7bc7\u7ae0\u5417\uff1f\u6b64\u64cd\u4f5c\u4e0d\u53ef\u6062\u590d\uff01')) return;
+    
+    chapters.splice(currentChapterIndex, 1);
+    chapters.forEach(function(ch, idx) { ch.order = idx + 1; });
+    
+    await saveChapters();
+    unsaved = false;
+    currentChapterIndex = -1;
+    showEditorEmpty();
+    renderChapterList();
+}
+
+async function saveChapters() {
+    try {
+        await fetch(API + '/chapters/' + currentWorldId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(chapters)
+        });
+        toast('\u4fdd\u5b58\u6210\u529f', 'success');
+    } catch(e) {
+        toast('\u4fdd\u5b58\u5931\u8d25', 'error');
+    }
+}
+
+function toast(msg, type) {
+    type = type || 'success';
+    var el = document.createElement('div');
+    el.className = 'toast toast-' + type;
+    el.textContent = msg;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(function(){ el.remove(); }, 3000);
+}
+
+// Ctrl+S
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveCurrentChapter();
+    }
+});
+
+loadWorlds();
+
+// ---- Editor Page Navigation ----
+var editorCurrentPage = 0;
+
+function updateEditorPageNav() {
+    var nav = document.getElementById('editor-page-nav');
+    if (!quill) { nav.style.display = 'none'; return; }
+
+    var hrs = quill.root.querySelectorAll('hr.page-break');
+    var total = hrs.length + 1;
+
+    nav.style.display = 'flex';
+    if (editorCurrentPage >= total) editorCurrentPage = total - 1;
+
+    var html = '<span class="epg-label">PAGE</span>';
+
+    // Page number buttons
+    var pages = editorGenPageNumbers(editorCurrentPage + 1, total, 7);
+    pages.forEach(function(p) {
+        if (p === '...') {
+            html += '<span class="epg-ellipsis">&hellip;</span>';
+        } else {
+            var active = (p === editorCurrentPage + 1) ? ' epg-active' : '';
+            html += '<button class="epg-btn' + active + '" onclick="editorGoToPage(' + (p - 1) + ')">' + p + '</button>';
+        }
+    });
+
+    // + button to insert page break
+    html += '<button class="epg-add" onclick="editorInsertPageBreak()" title="Insert page break at cursor">+</button>';
+
+    nav.innerHTML = html;
+}
+
+function editorGenPageNumbers(current, total, maxVisible) {
+    if (total <= maxVisible) {
+        var arr = [];
+        for (var i = 1; i <= total; i++) arr.push(i);
+        return arr;
+    }
+    var pages = [];
+    var half = Math.floor((maxVisible - 2) / 2);
+    var start = Math.max(2, current - half);
+    var end = Math.min(total - 1, current + half);
+    if (current <= half + 2) end = maxVisible - 1;
+    if (current >= total - half - 1) start = total - maxVisible + 2;
+    pages.push(1);
+    if (start > 2) pages.push('...');
+    for (var i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push('...');
+    pages.push(total);
+    return pages;
+}
+
+window.editorGoToPage = function(pageIdx) {
+    if (!quill) return;
+    var hrs = quill.root.querySelectorAll('hr.page-break');
+    editorCurrentPage = pageIdx;
+
+    if (pageIdx === 0) {
+        quill.root.scrollTop = 0;
+    } else if (pageIdx <= hrs.length) {
+        var target = hrs[pageIdx - 1];
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    updateEditorPageNav();
+};
+
+window.editorInsertPageBreak = function() {
+    if (!quill) return;
+    var index = window.lastSelectionIndex;
+    if (index === undefined || index === null) {
+        index = quill.getLength();
+    }
+    quill.insertEmbed(index, 'pagebreak', true, Quill.sources.USER);
+    quill.setSelection(index + 1, Quill.sources.SILENT);
+    window.lastSelectionIndex = index + 1;
+    markUnsaved();
+    updateEditorPageNav();
+};
+</script>
+</body>
+</html>

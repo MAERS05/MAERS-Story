@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="MAERS 故事空间 — 沉浸式深空叙事体验">
+    <title>MAERS Space - Story</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            pointer-events: none;
+            letter-spacing: 2px;
+        }
+
+        #reader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            color: #fff;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            background: transparent;
+        }
+
+        #reader-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #reader-overlay .close-btn {
+            position: absolute;
+            top: 30px;
+            right: 50px;
+            font-size: 50px;
+            cursor: pointer;
+            line-height: 1;
+            transition: transform 0.3s ease;
+            font-weight: 200;
+            z-index: 100;
+        }
+
+        #reader-overlay .close-btn:hover {
+            transform: scale(1.2);
+        }
+
+        #reader-overlay .content {
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            line-height: 1.8;
+            letter-spacing: 1px;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+        }
+
+        #reader-overlay .content::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #reader-overlay .content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        #reader-overlay h1 {
+            margin-top: 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+            font-weight: normal;
+        }
+
+        /* Restore enter button */
+        .enter-action { margin-top: 60px; text-align: right; }
+        #enter-reader-btn {
+            display: inline-block; padding: 10px 0;
+            color: rgba(255,255,255,0.5); cursor: pointer;
+            font-size: 14px; letter-spacing: 2px; transition: all 0.3s ease;
+        }
+        #enter-reader-btn:hover { color: #fff; transform: translateX(-5px); }
+
+        /* Pure reading mode state */
+        body.pure-reading canvas { display: none !important; }
+        body.pure-reading #instructions { display: none !important; }
+        body.pure-reading #reader-overlay { background: #000; }
+        body.pure-reading #reader-overlay .content {
+            border: none; box-shadow: none; background: transparent;
+            backdrop-filter: none; max-width: 800px; 
+            height: 100vh; max-height: 100vh;
+            overflow-y: hidden; /* Force pagination by disabling scroll */
+            display: flex; flex-direction: column;
+        }
+        body.pure-reading #reader-chapter-view.active {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+        }
+        /* ── #ch-content typography — always active, matches Quill editor ── */
+        #ch-content {
+            font-size: 15px;
+            line-height: 2;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+        #ch-content p {
+            margin-bottom: 0;
+            white-space: pre-wrap; /* preserve tab indentation from editor */
+        }
+        #ch-content h1 {
+            font-size: 2em; font-weight: bold;
+            margin: 0.67em 0;
+        }
+        #ch-content h2 {
+            font-size: 1.5em; font-weight: bold;
+            margin: 0.83em 0;
+        }
+        #ch-content h3 {
+            font-size: 1.17em; font-weight: bold;
+            margin: 1em 0;
+        }
+        #ch-content blockquote {
+            border-left: 2px solid rgba(255,255,255,0.3);
+            padding-left: 16px;
+            color: rgba(255,255,255,0.6);
+            margin: 1em 0;
+        }
+        #ch-content a {
+            color: #7ca8ff;
+            text-decoration: underline;
+        }
+        #ch-content strong {
+            color: #fff;
+        }
+        #ch-content em {
+            color: rgba(255,255,255,0.75);
+        }
+        #ch-content pre.ql-syntax {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            overflow-x: auto;
+            margin: 1em 0;
+            color: rgba(255,255,255,0.8);
+        }
+        #ch-content ol,
+        #ch-content ul {
+            padding-left: 1.5em;
+            margin: 0.5em 0;
+        }
+        #ch-content img {
+            max-width: 100%;
+            height: auto;
+        }
+        /* Pure reading layout — flex + scroll */
+        body.pure-reading #ch-content {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        body.pure-reading #ch-content::-webkit-scrollbar { width: 4px; }
+        body.pure-reading #ch-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+        /* In brief mode: show brief, hide chapter reader */
+        #reader-brief-view { display: block; }
+        #reader-brief-view.hidden { display: none; }
+        #reader-chapter-view { display: none; }
+        #reader-chapter-view.active { display: block; }
+
+        /* Subtle chapter title label */
+        #ch-title-label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.25);
+            letter-spacing: 2px;
+            margin-bottom: 28px;
+            user-select: none;
+        }
+
+        /* Page pagination bar */
+        #page-nav {
+            display: none; /* hidden by default, shown by JS */
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            margin-top: 36px; padding-top: 18px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            flex-wrap: wrap;
+        }
+        .pg-btn {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.45);
+            width: 34px; height: 34px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            font-size: 12px; font-family: var(--font-mono, monospace);
+            border-radius: 3px; transition: all 0.2s;
+        }
+        .pg-btn:hover:not(:disabled):not(.pg-active) {
+            border-color: rgba(255,255,255,0.5);
+            color: rgba(255,255,255,0.85);
+        }
+        .pg-btn:disabled { opacity: 0.15; cursor: default; }
+        .pg-btn.pg-active {
+            background: rgba(255,255,255,0.12);
+            border-color: rgba(255,255,255,0.5);
+            color: #fff;
+        }
+        .pg-btn.pg-arrow {
+            width: auto; padding: 0 12px;
+            font-size: 11px; letter-spacing: 1px;
+        }
+        .pg-ellipsis {
+            color: rgba(255,255,255,0.2);
+            font-size: 14px;
+            padding: 0 4px;
+            user-select: none;
+        }
+
+        /* ☰ Chapter menu button — only visible in pure reading */
+        #ch-menu-btn {
+            display: none;
+            position: fixed; top: 20px; left: 20px; z-index: 200;
+            background: none;
+            border: 1px solid rgba(255,255,255,0.3);
+            color: rgba(255,255,255,0.7);
+            width: 40px; height: 40px;
+            cursor: pointer; font-size: 18px;
+            align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        body.pure-reading #ch-menu-btn { display: flex; }
+        #ch-menu-btn:hover { border-color: #fff; color: #fff; }
+
+        /* Reading Mode Toggle Button */
+        #ch-mode-btn {
+            display: none;
+            position: fixed; top: 20px; left: 80px; z-index: 200;
+            background: none;
+            border: 1px solid rgba(255,255,255,0.3);
+            color: rgba(255,255,255,0.7);
+            height: 40px; padding: 0 16px;
+            cursor: pointer; font-size: 13px; letter-spacing: 2px;
+            align-items: center; justify-content: center;
+            transition: all 0.2s; border-radius: 3px;
+        }
+        body.pure-reading #ch-mode-btn { display: flex; }
+        #ch-mode-btn:hover { border-color: #fff; color: #fff; }
+
+        /* Chapter sidebar */
+        #ch-sidebar {
+            position: fixed; top: 0; left: 0;
+            width: 260px; height: 100%;
+            background: rgba(5,5,10,0.97);
+            border-right: 1px solid rgba(255,255,255,0.12);
+            z-index: 190; padding: 68px 0 30px;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            overflow-y: auto;
+            backdrop-filter: blur(12px);
+        }
+        #ch-sidebar.open { transform: translateX(0); }
+        #ch-sidebar::-webkit-scrollbar { width: 3px; }
+        #ch-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+        .ch-sidebar-header {
+            font-size: 10px; letter-spacing: 3px;
+            color: rgba(255,255,255,0.35);
+            text-transform: uppercase;
+            padding: 0 20px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 6px;
+        }
+        .ch-sidebar-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 11px 20px; cursor: pointer;
+            transition: all 0.2s;
+            border-left: 2px solid transparent;
+        }
+        .ch-sidebar-item:hover { background: rgba(255,255,255,0.04); color: #fff; }
+        .ch-sidebar-item.active { border-left-color: rgba(255,255,255,0.7); }
+        .ch-sidebar-item .num { font-family: monospace; font-size: 10px; color: rgba(255,255,255,0.25); min-width: 22px; }
+        .ch-sidebar-item .ttl { font-size: 13px; letter-spacing: 0.5px; color: rgba(255,255,255,0.65); }
+
+        #bg-watermark {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 32px;
+            color: rgba(255, 255, 255, 0.15);
+            z-index: 1;
+            pointer-events: none;
+            font-weight: 900;
+            opacity: 0;
+            transition: opacity 0.6s ease;
+            white-space: nowrap;
+            user-select: none;
+            letter-spacing: 4px;
+        }
+
+        #bg-watermark.visible {
+            opacity: 1;
+        }
+
+        /* Navigation dot + bar */
+        #nav-dot {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: transparent;
+            border: 1.5px solid #fff;
+            box-sizing: border-box;
+            cursor: pointer;
+            z-index: 100;
+            transition: background 0.3s ease, border-color 0.3s ease;
+        }
+
+        #nav-dot:hover {
+            border-color: #fff;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+        }
+
+        #nav-dot.active {
+            background: #fff;
+            border-color: #fff;
+        }
+
+        #nav-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 99;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-100%);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        #nav-bar.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+
+        #nav-back {
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            text-decoration: none;
+            letter-spacing: 2px;
+            transition: text-shadow 0.2s ease;
+            line-height: 50px;
+        }
+
+        #nav-back:hover {
+            text-shadow: 0 0 10px #fff;
+        }
+    </style>
+    <link rel="stylesheet" href="css/mobile-reader.css">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <div id="nav-dot" title="导航"></div>
+    <div id="nav-bar">
+        <a id="nav-back" href="index.html">&larr;</a>
+    </div>
+
+    <div id="bg-watermark"></div>
+    <div id="sphere-tooltip"
+        style="display: none; position: absolute; background: rgba(0,0,0,0.85); border: 1px solid rgba(255,255,255,0.4); border-radius: 50px; color: white; padding: 12px 24px; cursor: pointer; pointer-events: auto; z-index: 5; font-size: 14px; transform: translate(-50%, -100%); font-family: sans-serif; letter-spacing: 1px; white-space: nowrap; box-shadow: 0 0 15px rgba(0,0,0,0.8);">
+        <div id="tooltip-title">— &gt;</div>
+        <div id="tooltip-dropdown"
+            style="display: none; position: absolute; left: calc(100% + 15px); top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.85); border: 1px solid rgba(255,255,255,0.4); border-radius: 50px; padding: 12px 24px; white-space: nowrap; box-shadow: 0 0 15px rgba(0,0,0,0.8);">
+            <div style="color:#aaa;">传送至: <span id="goto-text"
+                    style="color:#fff; text-decoration: underline;"></span></div>
+        </div>
+    </div>
+
+    <div id="instructions">拖拽鼠标 / 点击球体阅读记录</div>
+
+    <div id="reader-overlay">
+        <div class="close-btn" id="close-reader">&times;</div>
+        <div class="content">
+
+            <!-- Brief view (world intro + enter button) -->
+            <div id="reader-brief-view">
+                <h1 id="reader-brief-title"></h1>
+                <div id="reader-brief"></div>
+
+                <div class="enter-action">
+                    <span id="enter-reader-btn">载入具体内容 / ENTER <span style="margin-left:5px">→</span></span>
+                </div>
+            </div>
+
+            <!-- Chapter reading view -->
+            <div id="reader-chapter-view">
+                <div id="ch-title-label"></div>
+                <div id="ch-content"></div>
+                <div id="page-nav"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Chapter menu button (pure reading only) -->
+    <button id="ch-menu-btn" onclick="toggleChSidebar()">☰</button>
+    <button id="ch-mode-btn" onclick="toggleReadMode()">滚动</button>
+
+    <!-- Chapter sidebar -->
+    <div id="ch-sidebar">
+        <div class="ch-sidebar-header">章节目录</div>
+        <div id="ch-sidebar-list"></div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./plugins/three/three.module.js",
+                "three/addons/controls/OrbitControls.js": "./plugins/three/OrbitControls.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ─── Data ───
+        let worldsData = [];
+        let sphereMeshes = [];   // { mesh, worldData, tooltipYOffset }
+        let allMeshes = [];      // flat array of just meshes for raycaster
+        
+        let readMode = 'page';   // 'page' or 'scroll'
+
+        window.toggleReadMode = function() {
+            readMode = readMode === 'page' ? 'scroll' : 'page';
+            document.getElementById('ch-mode-btn').textContent = readMode === 'page' ? '滚动' : '翻页';
+            openChapter(currentChapterIdx); // Re-render chapter
+        };
+
+        // ─── Fetch worlds from JSON ───
+        async function loadWorlds() {
+            try {
+                const res = await fetch('./data/worlds.json');
+                worldsData = await res.json();
+                // Only show published worlds
+                worldsData = worldsData.filter(w => w.status === 'published');
+            } catch {
+                // Fallback: empty
+                worldsData = [];
+            }
+        }
+
+        await loadWorlds();
+
+        // ─── 1. Scene Setup ───
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000);
+        scene.fog = new THREE.FogExp2(0x000000, 0.015);
+
+        // ─── 2. Camera Setup ───
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 10, 22);
+
+        // ─── 3. Renderer Setup ───
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        // ─── Helper: Create Dark Mesh ───
+        function createDarkMesh(geometry, edgeThreshold = 1) {
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                side: THREE.DoubleSide,
+                polygonOffset: true,
+                polygonOffsetFactor: 1,
+                polygonOffsetUnits: 1
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            const edges = new THREE.EdgesGeometry(geometry, edgeThreshold);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({
+                color: 0xffffff,
+                linewidth: 1,
+                transparent: true,
+                opacity: 0.9
+            }));
+            mesh.add(line);
+            return mesh;
+        }
+
+        // ─── 4. Dynamic Round Table & Grid ───
+        let maxDistance = 12;
+        worldsData.forEach(w => {
+            const pos = w.position || { x: 0, y: 0, z: 0 };
+            const r = w.radius || 1.5;
+            const dist = Math.sqrt(pos.x * pos.x + pos.z * pos.z) + r + 5;
+            if (dist > maxDistance) maxDistance = dist;
+        });
+
+        const outerRadius = maxDistance;
+        const innerRadius = 3.5;
+        const halfDepth = 0.3;
+        const points = [];
+        points.push(new THREE.Vector2(innerRadius, -halfDepth));
+        points.push(new THREE.Vector2(outerRadius, -halfDepth));
+        points.push(new THREE.Vector2(outerRadius, halfDepth));
+        points.push(new THREE.Vector2(innerRadius, halfDepth));
+        points.push(new THREE.Vector2(innerRadius, -halfDepth));
+
+        const tableGeometry = new THREE.LatheGeometry(points, 64);
+        const table = createDarkMesh(tableGeometry, 20);
+        scene.add(table);
+
+        const gridHelper = new THREE.PolarGridHelper(maxDistance + 5, 64, 8, 64, 0xffffff, 0xffffff);
+        gridHelper.material.transparent = true;
+        gridHelper.material.opacity = 0.1;
+        gridHelper.position.y = -8;
+        scene.add(gridHelper);
+
+        // ─── 5. Dynamically Create Spheres from worlds.json ───
+        function createWorldSpheres() {
+            worldsData.forEach((world) => {
+                const radius = world.radius || 1.5;
+                const geo = new THREE.IcosahedronGeometry(radius, 2);
+                const mesh = createDarkMesh(geo, 0);
+
+                const pos = world.position || { x: 0, y: 3.5, z: 0 };
+
+                // If has a parent (分化世界), attach to table so it orbits
+                // If no parent (主世界/一位世界), add directly to scene center
+                if (world.parentId) {
+                    mesh.position.set(pos.x, pos.y, pos.z);
+                    table.add(mesh);
+                } else {
+                    mesh.position.set(pos.x, pos.y, pos.z);
+                    scene.add(mesh);
+                }
+
+                const entry = {
+                    mesh,
+                    worldData: world,
+                    tooltipYOffset: radius * 1.3,
+                    accTime: Math.random() * 100, // desync animations
+                    baseY: pos.y,
+                    floatAmplitude: radius * 0.35,
+                };
+
+                sphereMeshes.push(entry);
+                allMeshes.push(mesh);
+            });
+        }
+
+        createWorldSpheres();
+
+        // ─── 6. Deep Space Assets ───
+        const starsGeom = new THREE.BufferGeometry();
+        const starsPos = [];
+        for (let i = 0; i < 4500; i++) {
+            starsPos.push(
+                (Math.random() - 0.5) * 150,
+                (Math.random() - 0.5) * 150,
+                (Math.random() - 0.5) * 150
+            );
+        }
+        starsGeom.setAttribute('position', new THREE.Float32BufferAttribute(starsPos, 3));
+        const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1, transparent: true, opacity: 0.7, sizeAttenuation: true });
+        const stars = new THREE.Points(starsGeom, starsMat);
+        scene.add(stars);
+
+        // ─── 7. Controls Setup ───
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minPolarAngle = 0;
+        controls.maxPolarAngle = Math.PI / 2;
+        controls.minDistance = 8;
+        controls.maxDistance = 45;
+
+        // ─── 7.5 Interaction Setup ───
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        let expandedEntry = null;
+        let isExpanded = false;
+        let targetScale = 1;
+        let isPureReading = false;
+
+        let hoveredEntry = null;
+        let hoverTimeout = null;
+        const tooltipBox = document.getElementById('sphere-tooltip');
+        const tooltipTitle = document.getElementById('tooltip-title');
+        const tooltipDropdown = document.getElementById('tooltip-dropdown');
+        const gotoText = document.getElementById('goto-text');
+
+        function updatePointer(event) {
+            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+
+        window.addEventListener('pointerdown', updatePointer);
+
+        // ─── Helper: find entry by mesh ───
+        function findEntry(mesh) {
+            return sphereMeshes.find(e => e.mesh === mesh);
+        }
+
+        // ─── Helper: get blackhole target worlds ───
+        function getBlackholeTargets(world) {
+            if (!world.blackholes || !world.blackholes.length) return [];
+            return world.blackholes
+                .map(id => worldsData.find(w => w.id === id))
+                .filter(Boolean);
+        }
+
+        window.addEventListener('pointermove', (event) => {
+            updatePointer(event);
+            if (isExpanded) return;
+
+            if (event.target.closest('#sphere-tooltip')) {
+                if (hoverTimeout) { clearTimeout(hoverTimeout); hoverTimeout = null; }
+                return;
+            }
+
+            if (event.target === renderer.domElement) {
+                raycaster.setFromCamera(pointer, camera);
+                const intersects = raycaster.intersectObjects(allMeshes, false);
+
+                if (intersects.length > 0) {
+                    document.body.style.cursor = 'pointer';
+                    const entry = findEntry(intersects[0].object);
+                    if (!entry) return;
+                    hoveredEntry = entry;
+
+                    if (hoverTimeout) { clearTimeout(hoverTimeout); hoverTimeout = null; }
+
+                    const watermark = document.getElementById('bg-watermark');
+                    const world = entry.worldData;
+                    const bhTargets = getBlackholeTargets(world);
+
+                    watermark.innerText = world.title;
+                    watermark.classList.add('visible');
+
+                    tooltipBox.style.display = 'block';
+
+                    if (bhTargets.length > 0) {
+                        tooltipTitle.innerHTML = `黑洞数量:${bhTargets.length} &gt;`;
+                        tooltipBox.style.cursor = 'pointer';
+                        gotoText.innerText = bhTargets[0].title;
+                    } else {
+                        tooltipTitle.innerHTML = `黑洞数量:0`;
+                        tooltipBox.style.cursor = 'default';
+                        tooltipDropdown.style.display = 'none';
+                    }
+                } else {
+                    document.body.style.cursor = 'default';
+                    if (tooltipDropdown.style.display !== 'block') {
+                        if (!hoverTimeout) {
+                            hoverTimeout = setTimeout(() => {
+                                hoveredEntry = null;
+                                tooltipBox.style.display = 'none';
+                                document.getElementById('bg-watermark').classList.remove('visible');
+                                hoverTimeout = null;
+                            }, 350);
+                        }
+                    }
+                }
+            }
+        });
+
+        tooltipTitle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!hoveredEntry) return;
+            const bhTargets = getBlackholeTargets(hoveredEntry.worldData);
+            if (bhTargets.length === 0) return;
+            tooltipDropdown.style.display = tooltipDropdown.style.display === 'block' ? 'none' : 'block';
+        });
+
+        gotoText.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const targetTitle = gotoText.innerText;
+            const targetEntry = sphereMeshes.find(s => s.worldData.title === targetTitle);
+            if (targetEntry) triggerExpand(targetEntry);
+        });
+
+        // ─── Expand / Read ───
+        let currentChapters = [];
+        let currentChapterIdx = 0;
+        let currentWorldIdForReader = null;
+
+        // ─── Pagination (manual page-break markers) ───
+        let currentPageIdx = 0;
+        let totalPages = 1;
+        let pageChunks = []; // array of HTML strings, split by <hr class="page-break">
+
+        // ─── Reading Memory (localStorage) ───
+        function saveReadingProgress() {
+            if (!currentWorldIdForReader || !currentChapters.length) return;
+            const progress = {
+                chapterIdx: currentChapterIdx,
+                pageIdx: currentPageIdx,
+                timestamp: Date.now()
+            };
+            localStorage.setItem(`maers-progress-${currentWorldIdForReader}`, JSON.stringify(progress));
+        }
+
+        function getReadingProgress(worldId) {
+            try {
+                const raw = localStorage.getItem(`maers-progress-${worldId}`);
+                return raw ? JSON.parse(raw) : null;
+            } catch { return null; }
+        }
+
+        async function triggerExpand(entry) {
+            if (isExpanded) return;
+            expandedEntry = entry;
+            isExpanded = true;
+            const radius = entry.worldData.radius || 1.5;
+            targetScale = Math.max(40, 60 / radius);
+
+            const world = entry.worldData;
+            currentWorldIdForReader = world.id;
+
+            // Set brief content
+            document.getElementById('reader-brief-title').innerHTML = world.title;
+            document.getElementById('reader-brief').innerHTML = world.brief || '<p>暂无简介</p>';
+
+            // Fetch chapters
+            try {
+                const res = await fetch(`./data/chapters/${world.id}.json`);
+                const all = await res.json();
+                currentChapters = all
+                    .filter(ch => ch.status === 'published')
+                    .sort((a, b) => a.order - b.order);
+            } catch {
+                currentChapters = [];
+            }
+
+            // Render chapter list to sidebar
+            const listEl = document.getElementById('ch-sidebar-list');
+            if (currentChapters.length === 0) {
+                listEl.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:13px;padding:10px 20px">暂无已发布章节</div>';
+            } else {
+                listEl.innerHTML = currentChapters.map((ch, i) => `
+                    <div class="ch-sidebar-item" onclick="openChapter(${i})">
+                        <span class="num">${String(ch.order).padStart(2,'0')}</span>
+                        <span class="ttl">${ch.title}</span>
+                    </div>
+                `).join('');
+            }
+
+            // Update enter button text based on reading memory
+            const enterBtn = document.getElementById('enter-reader-btn');
+            const saved = getReadingProgress(world.id);
+            if (saved && currentChapters.length > 0) {
+                enterBtn.innerHTML = '(继续阅读) 载入具体内容 / ENTER <span style="margin-left:5px">→</span>';
+            } else {
+                enterBtn.innerHTML = '载入具体内容 / ENTER <span style="margin-left:5px">→</span>';
+            }
+
+            // Show brief view
+            showBriefView();
+
+            // Clean up tooltip
+            tooltipBox.style.display = 'none';
+            tooltipDropdown.style.display = 'none';
+            hoveredEntry = null;
+            document.getElementById('bg-watermark').classList.remove('visible');
+            if (hoverTimeout) { clearTimeout(hoverTimeout); hoverTimeout = null; }
+            document.body.style.cursor = 'default';
+
+            setTimeout(() => {
+                const navDot = document.getElementById('nav-dot');
+                const navBar = document.getElementById('nav-bar');
+                navDot.classList.remove('active');
+                navBar.classList.remove('visible');
+                navDot.style.display = 'none';
+                navBar.style.display = 'none';
+                document.getElementById('reader-overlay').classList.add('active');
+            }, 250);
+        }
+
+        window.showBriefView = function() {
+            document.getElementById('reader-brief-view').classList.remove('hidden');
+            document.getElementById('reader-chapter-view').classList.remove('active');
+            document.querySelector('#reader-overlay .content').scrollTop = 0;
+            document.getElementById('ch-content').scrollTop = 0;
+            document.getElementById('ch-sidebar').classList.remove('open');
+        }
+
+        window.toggleChSidebar = function() {
+            document.getElementById('ch-sidebar').classList.toggle('open');
+        }
+
+        window.openChapter = function(idx, startPage) {
+            currentChapterIdx = idx;
+            renderChapter(startPage !== undefined ? startPage : 0);
+            document.getElementById('ch-sidebar').classList.remove('open');
+        }
+
+        window.navigatePage = function(delta) {
+            const next = currentPageIdx + delta;
+            
+            if (next < 0) {
+                if (currentChapterIdx > 0) {
+                    window.openChapter(currentChapterIdx - 1, -1); // Prev chapter, last page
+                }
+                return;
+            }
+            if (next >= totalPages) {
+                if (currentChapterIdx < currentChapters.length - 1) {
+                    window.openChapter(currentChapterIdx + 1, 0); // Next chapter, first page
+                }
+                return;
+            }
+
+            currentPageIdx = next;
+            renderPage();
+            saveReadingProgress();
+            document.querySelector('#reader-overlay .content').scrollTop = 0;
+            if(document.getElementById('ch-content')) document.getElementById('ch-content').scrollTop = 0;
+        }
+
+        function renderChapter(startPage) {
+            const ch = currentChapters[currentChapterIdx];
+
+            // Set subtle title label
+            document.getElementById('ch-title-label').textContent = ch.title;
+
+            // Activate chapter view FIRST so container is measurable
+            document.getElementById('reader-brief-view').classList.add('hidden');
+            document.getElementById('reader-chapter-view').classList.add('active');
+
+            // Split content by manual page-break markers (<hr class="page-break">)
+            const rawContent = ch.content || '<p>（本章暂无内容）</p>';
+            let manualChunks;
+
+            if (readMode === 'scroll') {
+                manualChunks = [rawContent];
+            } else {
+                manualChunks = rawContent
+                    .split(/<hr[^>]*class\s*=\s*["']page-break["'][^>]*\/?>/gi)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0);
+            }
+            if (manualChunks.length === 0) manualChunks = [rawContent];
+
+            // Auto-split chunks that overflow the viewport
+            if (readMode === 'page') {
+                pageChunks = autoSplitToFitViewport(manualChunks);
+            } else {
+                pageChunks = manualChunks;
+            }
+
+            totalPages = pageChunks.length;
+
+            if (startPage === -1) {
+                currentPageIdx = totalPages - 1;
+            } else {
+                currentPageIdx = Math.min(startPage, totalPages - 1);
+            }
+
+            renderPage();
+
+            // Chapter-level nav sidebar highlight
+            document.querySelectorAll('.ch-sidebar-item').forEach((el, i) =>
+                el.classList.toggle('active', i === currentChapterIdx));
+            document.querySelector('#reader-overlay .content').scrollTop = 0;
+            document.getElementById('ch-content').scrollTop = 0;
+
+            saveReadingProgress();
+        }
+
+        // ─── Auto-pagination: split chunks that overflow the screen ───
+        function autoSplitToFitViewport(chunks) {
+            const container = document.getElementById('ch-content');
+            if (!container) return chunks;
+
+            // Force synchronous reflow so flex layout is fully computed
+            void container.offsetHeight;
+            const availH = container.clientHeight;
+
+            // Safety: container must be properly sized (at least 300px tall)
+            if (availH < 300) return chunks;
+
+            const pages = [];
+
+            chunks.forEach(html => {
+                // Render directly into the REAL container for 100% accurate measurement
+                container.innerHTML = html;
+                void container.offsetHeight; // force reflow
+
+                // If content fits within one screen, keep as-is
+                if (container.scrollHeight <= availH) {
+                    pages.push(html);
+                    return;
+                }
+
+                // Content overflows — walk children and group into screen-sized pages
+                const kids = Array.from(container.children);
+                if (!kids.length) { pages.push(html); return; }
+
+                let batch = [];
+                let pageOrigin = kids[0].offsetTop;
+
+                for (let i = 0; i < kids.length; i++) {
+                    const kid = kids[i];
+                    const relBottom = (kid.offsetTop - pageOrigin) + kid.offsetHeight;
+
+                    if (relBottom > availH && batch.length > 0) {
+                        pages.push(batch.map(e => e.outerHTML).join('\n'));
+                        batch = [];
+                        pageOrigin = kid.offsetTop;
+                    }
+                    batch.push(kid);
+                }
+
+                if (batch.length > 0) {
+                    pages.push(batch.map(e => e.outerHTML).join('\n'));
+                }
+            });
+
+            // Clear measurement content
+            container.innerHTML = '';
+            return pages.length > 0 ? pages : chunks;
+        }
+
+        function renderPage() {
+            document.getElementById('ch-content').innerHTML = pageChunks[currentPageIdx] || '';
+
+            const pageNav = document.getElementById('page-nav');
+            const isFirstChapter = currentChapterIdx === 0;
+            const isLastChapter = currentChapterIdx === currentChapters.length - 1;
+
+            if (totalPages <= 1 && isFirstChapter && isLastChapter) {
+                pageNav.style.display = 'none';
+                return;
+            }
+            pageNav.style.display = 'flex';
+
+            let html = '';
+            
+            const prevDisabled = (currentPageIdx === 0 && isFirstChapter) ? 'disabled' : '';
+            html += `<button class="pg-btn pg-arrow" ${prevDisabled} onclick="navigatePage(-1)">&lsaquo;</button>`;
+
+            if (totalPages > 1) {
+                const maxVisible = 7;
+                const pages = generatePageNumbers(currentPageIdx + 1, totalPages, maxVisible);
+                pages.forEach(p => {
+                    if (p === '...') {
+                        html += '<span class="pg-ellipsis">&hellip;</span>';
+                    } else {
+                        const isActive = p === currentPageIdx + 1;
+                        html += `<button class="pg-btn ${isActive ? 'pg-active' : ''}" onclick="goToPage(${p - 1})">${p}</button>`;
+                    }
+                });
+            } else {
+                html += `<span style="font-size: 11px; letter-spacing: 2px; color: rgba(255,255,255,0.4); padding: 0 12px; user-select: none;">第 ${currentChapterIdx + 1} 章</span>`;
+            }
+
+            const nextDisabled = (currentPageIdx === totalPages - 1 && isLastChapter) ? 'disabled' : '';
+            html += `<button class="pg-btn pg-arrow" ${nextDisabled} onclick="navigatePage(1)">&rsaquo;</button>`;
+
+            pageNav.innerHTML = html;
+        }
+
+        // Generate page number array with ellipsis, e.g. [1, 2, 3, '...', 34]
+        function generatePageNumbers(current, total, maxVisible) {
+            if (total <= maxVisible) {
+                return Array.from({length: total}, (_, i) => i + 1);
+            }
+            const pages = [];
+            const half = Math.floor((maxVisible - 2) / 2); // slots for middle
+            let start = Math.max(2, current - half);
+            let end = Math.min(total - 1, current + half);
+
+            // Adjust if near edges
+            if (current <= half + 2) {
+                end = maxVisible - 1;
+            }
+            if (current >= total - half - 1) {
+                start = total - maxVisible + 2;
+            }
+
+            pages.push(1);
+            if (start > 2) pages.push('...');
+            for (let i = start; i <= end; i++) pages.push(i);
+            if (end < total - 1) pages.push('...');
+            pages.push(total);
+            return pages;
+        }
+
+        window.goToPage = function(idx) {
+            if (idx < 0 || idx >= totalPages || idx === currentPageIdx) return;
+            currentPageIdx = idx;
+            renderPage();
+            saveReadingProgress();
+            document.querySelector('#reader-overlay .content').scrollTop = 0;
+            document.getElementById('ch-content').scrollTop = 0;
+        }
+
+        // Unified resize handler: Three.js + auto-pagination
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                if (isPureReading && readMode === 'page' && currentChapters.length > 0 && currentChapterIdx >= 0) {
+                    renderChapter(currentPageIdx);
+                }
+            }, 300);
+        });
+
+        window.addEventListener('click', (e) => {
+            if (isExpanded) return;
+            if (e.target.closest('#sphere-tooltip')) return;
+            if (e.target.closest('#nav-dot') || e.target.closest('#nav-bar')) return;
+
+            raycaster.setFromCamera(pointer, camera);
+            const intersects = raycaster.intersectObjects(allMeshes, false);
+
+            if (intersects.length > 0) {
+                const entry = findEntry(intersects[0].object);
+                if (entry) triggerExpand(entry);
+            } else {
+                tooltipDropdown.style.display = 'none';
+                hoveredEntry = null;
+                tooltipBox.style.display = 'none';
+                document.getElementById('bg-watermark').classList.remove('visible');
+                if (hoverTimeout) { clearTimeout(hoverTimeout); hoverTimeout = null; }
+            }
+        });
+
+        document.getElementById('enter-reader-btn').addEventListener('click', () => {
+            isPureReading = true;
+            document.body.classList.add('pure-reading');
+            if (currentChapters.length > 0) {
+                // Delay one frame so flex layout is fully computed before auto-pagination measures
+                requestAnimationFrame(() => {
+                    const saved = getReadingProgress(currentWorldIdForReader);
+                    if (saved) {
+                        const chIdx = Math.min(saved.chapterIdx, currentChapters.length - 1);
+                        openChapter(chIdx, saved.pageIdx || 0);
+                    } else {
+                        openChapter(0, 0);
+                    }
+                });
+            }
+        });
+
+
+        document.getElementById('close-reader').addEventListener('click', () => {
+            const overlay = document.getElementById('reader-overlay');
+            if (overlay) overlay.classList.remove('active');
+
+            // Clean up reader UI state
+            document.getElementById('ch-sidebar').classList.remove('open');
+            document.getElementById('reader-chapter-view').classList.remove('active');
+            document.getElementById('reader-brief-view').classList.remove('hidden');
+
+            document.getElementById('nav-dot').style.display = '';
+            document.getElementById('nav-bar').style.display = '';
+
+            setTimeout(() => {
+                targetScale = 1;
+                if (isPureReading) {
+                    document.body.classList.remove('pure-reading');
+                    isPureReading = false;
+                }
+            }, 100);
+
+            setTimeout(() => {
+                isExpanded = false;
+                if (expandedEntry) {
+                    expandedEntry.mesh.scale.set(1, 1, 1);
+                    expandedEntry = null;
+                }
+            }, 1600);
+        });
+
+        // ─── 8. Animation Loop ───
+        const _scaleTarget = new THREE.Vector3();
+        const clock = new THREE.Clock();
+        let lastTime = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+            const delta = time - lastTime;
+            lastTime = time;
+
+            // Animate each sphere
+            sphereMeshes.forEach(entry => {
+                const isHovered = hoveredEntry === entry;
+                if (!isHovered || isExpanded) entry.accTime += delta;
+
+                entry.mesh.position.y = entry.baseY + Math.sin(entry.accTime * 1.5) * entry.floatAmplitude;
+                entry.mesh.rotation.y = entry.accTime * 0.15;
+                entry.mesh.rotation.x = entry.accTime * 0.075;
+            });
+
+            table.rotation.y = time * 0.05;
+            stars.rotation.y = time * 0.02;
+
+            // Update tooltip position
+            if (hoveredEntry && !isExpanded && tooltipBox.style.display === 'block') {
+                const vector = new THREE.Vector3();
+                vector.setFromMatrixPosition(hoveredEntry.mesh.matrixWorld);
+                vector.y += hoveredEntry.tooltipYOffset;
+                vector.project(camera);
+
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+                tooltipBox.style.left = `${x}px`;
+                tooltipBox.style.top = `${y}px`;
+            }
+
+            if (!isExpanded) {
+                controls.update();
+            }
+
+            if (expandedEntry) {
+                const speed = 0.05;
+                _scaleTarget.set(targetScale, targetScale, targetScale);
+                expandedEntry.mesh.scale.lerp(_scaleTarget, speed);
+            }
+
+            if (!isPureReading) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        animate();
+
+
+        // ─── 10. Nav dot toggle ───
+        const navDot = document.getElementById('nav-dot');
+        navDot.addEventListener('click', () => {
+            document.getElementById('nav-bar').classList.toggle('visible');
+            navDot.classList.toggle('active');
+        });
+    </script>
+</body>
+
+</html>
